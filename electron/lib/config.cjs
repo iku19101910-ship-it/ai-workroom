@@ -2,6 +2,7 @@
 const { app } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { atomicWriteFile } = require("./fsutil.cjs");
 
 function configPath() {
   return path.join(app.getPath("userData"), "app-config.json");
@@ -18,8 +19,7 @@ function getAppConfig() {
 function setAppConfig(patch) {
   const cur = getAppConfig();
   const next = { ...cur, ...patch };
-  fs.mkdirSync(path.dirname(configPath()), { recursive: true });
-  fs.writeFileSync(configPath(), JSON.stringify(next, null, 2), "utf8");
+  atomicWriteFile(configPath(), JSON.stringify(next, null, 2), "utf8");
   return next;
 }
 

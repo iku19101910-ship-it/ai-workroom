@@ -9,6 +9,7 @@ const { getKey } = require("./keys.cjs");
 const { pickCheapModel, getProvider } = require("./models.cjs");
 const { extractText, SUPPORTED_EXTS } = require("./extract.cjs");
 const { notifyAll } = require("./notify.cjs");
+const { atomicWriteFile } = require("./fsutil.cjs");
 
 function stateFile() {
   return path.join(app.getPath("userData"), "scan_state.json");
@@ -23,7 +24,7 @@ function loadState() {
 }
 
 function saveState(s) {
-  fs.writeFileSync(stateFile(), JSON.stringify(s), "utf8");
+  atomicWriteFile(stateFile(), JSON.stringify(s), "utf8");
 }
 
 function walkFiles(dir, depth = 0, out = []) {

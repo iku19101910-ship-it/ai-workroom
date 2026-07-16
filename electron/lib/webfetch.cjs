@@ -5,6 +5,7 @@ const { app } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { atomicWriteFile } = require("./fsutil.cjs");
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24時間
 const MAX_TEXT_LEN = 20000;
@@ -101,7 +102,7 @@ async function fetchUrl(url) {
     const body = await res.text();
     const text = /html/i.test(ct) ? htmlToText(body) : body.slice(0, MAX_TEXT_LEN);
     const entry = { url, error: null, text, fetched_at: Date.now() };
-    fs.writeFileSync(file, JSON.stringify(entry), "utf8");
+    atomicWriteFile(file, JSON.stringify(entry), "utf8");
     return entry;
   } catch (err) {
     return { url, error: String(err?.message || err), text: null, fetched_at: Date.now() };

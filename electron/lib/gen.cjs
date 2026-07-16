@@ -6,6 +6,7 @@ const path = require("path");
 const { getKey } = require("./keys.cjs");
 const { getAppConfig } = require("./config.cjs");
 const { listModels } = require("./models.cjs");
+const { atomicWriteFile, moveToTrash } = require("./fsutil.cjs");
 
 function mediaDir() {
   const root = getAppConfig().workspacePath;
@@ -27,7 +28,7 @@ function readIndex() {
 }
 
 function writeIndex(idx) {
-  fs.writeFileSync(indexFile(), JSON.stringify(idx, null, 2), "utf8");
+  atomicWriteFile(indexFile(), JSON.stringify(idx, null, 2), "utf8");
 }
 
 function newId() {
@@ -136,7 +137,7 @@ function deleteMedia(id) {
   writeIndex(idx);
   if (item) {
     const f = path.join(mediaDir(), item.file);
-    if (fs.existsSync(f)) fs.unlinkSync(f);
+    moveToTrash(getAppConfig().workspacePath, f);
   }
   return true;
 }

@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { getAppConfig } = require("./config.cjs");
+const { atomicWriteFile, moveToTrash } = require("./fsutil.cjs");
 
 function wsRoot() {
   const p = getAppConfig().workspacePath;
@@ -19,8 +20,7 @@ function readJson(file, fallback) {
 }
 
 function writeJson(file, obj) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(obj, null, 2), "utf8");
+  atomicWriteFile(file, JSON.stringify(obj, null, 2), "utf8");
 }
 
 function newId(prefix) {
@@ -156,7 +156,7 @@ function saveRoleCard(card) {
 
 function deleteRoleCard(id) {
   const file = path.join(wsRoot(), "role_cards", id + ".json");
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  moveToTrash(wsRoot(), file);
   return true;
 }
 
@@ -195,7 +195,7 @@ function saveSharedDoc(doc) {
   if (pos >= 0) idx.docs[pos] = { ...idx.docs[pos], ...meta };
   else idx.docs.push({ ...meta, created_at: now });
   writeJson(smIndexFile(), idx);
-  fs.writeFileSync(path.join(wsRoot(), "shared_memory", doc.id + ".md"), doc.content || "", "utf8");
+  atomicWriteFile(path.join(wsRoot(), "shared_memory", doc.id + ".md"), doc.content || "", "utf8");
   return getSharedDoc(doc.id);
 }
 
@@ -204,7 +204,7 @@ function deleteSharedDoc(id) {
   idx.docs = idx.docs.filter((d) => d.id !== id);
   writeJson(smIndexFile(), idx);
   const file = path.join(wsRoot(), "shared_memory", id + ".md");
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  moveToTrash(wsRoot(), file);
   return true;
 }
 
@@ -320,7 +320,7 @@ function deleteConversation(convId) {
   idx.conversations = idx.conversations.filter((c) => c.id !== convId);
   writeJson(convIndexFile(), idx);
   const file = convFile(convId);
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  moveToTrash(wsRoot(), file);
   return true;
 }
 
@@ -413,7 +413,7 @@ function saveArtifact(art) {
       updated_at: now,
     };
     idx.items.push(meta);
-    fs.writeFileSync(path.join(artifactsDir(), meta.file), art.content || "", "utf8");
+    atomicWriteFile(path.join(artifactsDir(), meta.file), art.content || "", "utf8");
     writeJson(artifactsIndexFile(), idx);
     return meta;
   }
@@ -425,7 +425,7 @@ function saveArtifact(art) {
   if (art.tags !== undefined) meta.tags = art.tags.filter(Boolean);
   meta.updated_at = now;
   if (art.content !== undefined) {
-    fs.writeFileSync(path.join(artifactsDir(), meta.file), art.content, "utf8");
+    atomicWriteFile(path.join(artifactsDir(), meta.file), art.content, "utf8");
   }
   idx.items[pos] = meta;
   writeJson(artifactsIndexFile(), idx);
@@ -439,7 +439,7 @@ function deleteArtifact(id) {
   writeJson(artifactsIndexFile(), idx);
   if (meta) {
     const f = path.join(artifactsDir(), meta.file);
-    if (fs.existsSync(f)) fs.unlinkSync(f);
+    moveToTrash(wsRoot(), f);
   }
   return true;
 }
@@ -610,7 +610,7 @@ function savePipeline(pl) {
 
 function deletePipeline(id) {
   const file = path.join(wsRoot(), "pipelines", id + ".json");
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  moveToTrash(wsRoot(), file);
   return true;
 }
 

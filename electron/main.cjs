@@ -12,6 +12,7 @@ const briefing = require("./lib/briefing.cjs");
 const gen = require("./lib/gen.cjs");
 const wizard = require("./lib/wizard.cjs");
 const { extractText } = require("./lib/extract.cjs");
+const { cleanupTrash } = require("./lib/fsutil.cjs");
 
 // ローカルファイル(背景画像・動画、生成メディア)をレンダラーに配信するためのスキーム
 protocol.registerSchemesAsPrivileged([
@@ -239,6 +240,7 @@ app.whenReady().then(() => {
   registerIpc();
   try {
     if (getAppConfig().workspacePath) {
+      cleanupTrash(getAppConfig().workspacePath, 30);
       ws.seedExampleCards();
       seedExamPipeline();
     }

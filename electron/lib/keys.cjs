@@ -3,6 +3,7 @@
 const { app, safeStorage } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { atomicWriteFile } = require("./fsutil.cjs");
 
 const PROVIDERS = ["anthropic", "openai", "google"];
 
@@ -19,8 +20,7 @@ function loadRaw() {
 }
 
 function saveRaw(obj) {
-  fs.mkdirSync(path.dirname(keysPath()), { recursive: true });
-  fs.writeFileSync(keysPath(), JSON.stringify(obj, null, 2), "utf8");
+  atomicWriteFile(keysPath(), JSON.stringify(obj, null, 2), "utf8");
 }
 
 function encryptionAvailable() {

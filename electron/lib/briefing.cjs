@@ -6,6 +6,7 @@ const path = require("path");
 const ws = require("./workspace.cjs");
 const { getKey } = require("./keys.cjs");
 const { pickCheapModel, getProvider } = require("./models.cjs");
+const { atomicWriteFile } = require("./fsutil.cjs");
 
 function briefingFile() {
   return path.join(app.getPath("userData"), "briefing.json");
@@ -83,7 +84,7 @@ async function getTodayBriefing({ force = false } = {}) {
   try {
     const r = await generate();
     const entry = { date: today, text: r.text, reason: r.reason, cardName: r.cardName || null };
-    fs.writeFileSync(briefingFile(), JSON.stringify(entry), "utf8");
+    atomicWriteFile(briefingFile(), JSON.stringify(entry), "utf8");
     return entry;
   } catch (err) {
     return { date: today, text: null, reason: String(err?.message || err) };
