@@ -1,17 +1,27 @@
 // モデル一覧の取得キャッシュと、タスク別モデルルーティング(§8.4)用の軽量モデル選定。
 const { getKey } = require("./keys.cjs");
 
-const providers = {
-  anthropic: require("./providers/anthropic.cjs"),
-  openai: require("./providers/openai.cjs"),
-  google: require("./providers/google.cjs"),
+const providerPaths = {
+  anthropic: "./providers/anthropic.cjs",
+  openai: "./providers/openai.cjs",
+  google: "./providers/google.cjs",
 };
+
+const providers = new Map();
+
+// 数百モジュールある各社SDKは、実際にそのプロバイダを使うまで読み込まない。
+function getProvider(name) {
+  const providerPath = providerPaths[name];
+  if (!providerPath) return undefined;
+  if (!providers.has(name)) providers.set(name, require(providerPath));
+  return providers.get(name);
+}
 
 const cache = new Map(); // provider -> { models, error }
 
 async function listModels(providerName, force = false) {
   if (!force && cache.has(providerName)) return cache.get(providerName);
-  const provider = providers[providerName];
+  const provider = getProvider(providerName);
   if (!provider) return { models: [], error: "unknown provider" };
   const apiKey = getKey(providerName);
   if (!apiKey) return { models: [], error: "no_key" };
@@ -42,10 +52,6 @@ async function pickCheapModel(providerName, fallback) {
     if (m) return m.id;
   }
   return fallback;
-}
-
-function getProvider(name) {
-  return providers[name];
 }
 
 module.exports = { listModels, pickCheapModel, getProvider };

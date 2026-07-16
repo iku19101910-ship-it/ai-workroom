@@ -43,17 +43,21 @@ export default function HomeView({
   const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
 
   useEffect(() => {
-    (async () => {
-      setConvs(await window.api.listConversations());
-      const ym = new Date().toISOString().slice(0, 7);
-      const today = new Date().toISOString().slice(0, 10);
-      const usage = await window.api.getUsage(ym);
-      setTodayRecords(usage.records.filter((r: UsageRecord) => r.date === today));
-    })();
+    // ブリーフィングは初回生成にAI呼び出しで数秒かかることがあるため、
+    // 他の高速なデータ表示を待たせないよう独立して読み込む。
     window.api.getBriefing().then(setBriefing);
     (async () => {
-      const all = await window.api.listTasks();
-      const open = all
+      const ym = new Date().toISOString().slice(0, 7);
+      const today = new Date().toISOString().slice(0, 10);
+      const [nextConvs, usage, allTasks, nextSuggestions] = await Promise.all([
+        window.api.listConversations(),
+        window.api.getUsage(ym),
+        window.api.listTasks(),
+        window.api.listSuggestions(),
+      ]);
+      setConvs(nextConvs);
+      setTodayRecords(usage.records.filter((r: UsageRecord) => r.date === today));
+      const open = allTasks
         .filter((t) => t.status === "open")
         .sort((a, b) => {
           if (!a.due_date && !b.due_date) return 0;
@@ -63,7 +67,7 @@ export default function HomeView({
         })
         .slice(0, 8);
       setTasks(open);
-      setSuggestions(await window.api.listSuggestions());
+      setSuggestions(nextSuggestions);
     })();
   }, []);
 

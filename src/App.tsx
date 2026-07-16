@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Sidebar, { ViewId } from "./components/Sidebar";
 import Header from "./components/Header";
-import SetupWizard from "./components/SetupWizard";
 import HomeView from "./views/HomeView";
-import ChatView from "./views/ChatView";
-import CardsHubView from "./views/CardsHubView";
-import ArtifactsView from "./views/ArtifactsView";
-import PipelinesView from "./views/PipelinesView";
-import TasksView from "./views/TasksView";
-import StudioView from "./views/StudioView";
-import SettingsView from "./views/SettingsView";
-import CostView from "./views/CostView";
 import type { KeyInfo, RoleCard, Settings } from "./types";
 import { appfileUrl } from "./types";
+
+// 初期画面で不要な機能は、選択されたときだけ読み込む。
+const SetupWizard = lazy(() => import("./components/SetupWizard"));
+const ChatView = lazy(() => import("./views/ChatView"));
+const CardsHubView = lazy(() => import("./views/CardsHubView"));
+const ArtifactsView = lazy(() => import("./views/ArtifactsView"));
+const PipelinesView = lazy(() => import("./views/PipelinesView"));
+const TasksView = lazy(() => import("./views/TasksView"));
+const StudioView = lazy(() => import("./views/StudioView"));
+const SettingsView = lazy(() => import("./views/SettingsView"));
+const CostView = lazy(() => import("./views/CostView"));
 
 const VIEW_TITLES: Record<ViewId, string> = {
   home: "ホーム",
@@ -25,6 +27,10 @@ const VIEW_TITLES: Record<ViewId, string> = {
   cost: "コスト",
   settings: "設定",
 };
+
+function ViewLoading() {
+  return <div className="muted" style={{ padding: 24 }}>読み込み中…</div>;
+}
 
 // 背景(§4.12 3層レイヤー: 背景 → 調光幕 → UIパネル)
 function BackgroundLayers({ settings }: { settings: Settings }) {
@@ -124,19 +130,21 @@ export default function App() {
   }, [applySettings]);
 
   const loadWorkspaceData = useCallback(async () => {
-    await reloadSettings();
-    await refreshCards();
+    await Promise.all([reloadSettings(), refreshCards()]);
   }, [reloadSettings, refreshCards]);
 
   useEffect(() => {
     (async () => {
       const cfg = await window.api.getConfig();
       setWorkspacePath(cfg.workspacePath);
-      await refreshKeys();
-      if (cfg.workspacePath) {
-        await loadWorkspaceData();
+      try {
+        await Promise.all([
+          refreshKeys(),
+          cfg.workspacePath ? loadWorkspaceData() : Promise.resolve(),
+        ]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [loadWorkspaceData, refreshKeys]);
 
@@ -155,22 +163,24 @@ export default function App() {
   const needsWizard = !workspacePath || (!wizardDone && !keys.some((k) => k.configured) && cards.length === 0);
   if (needsWizard) {
     return (
-      <SetupWizard
-        workspacePath={workspacePath}
-        keys={keys}
-        onChooseWorkspace={async () => {
-          const p = await window.api.chooseWorkspace();
-          if (p) {
-            setWorkspacePath(p);
-            await loadWorkspaceData();
-          }
-          return p;
-        }}
-        onSetKey={async (provider, key) => {
-          setKeys(await window.api.setKey(provider, key));
-        }}
-        onFinish={() => setWizardDone(true)}
-      />
+      <Suspense fallback={<ViewLoading />}>
+        <SetupWizard
+          workspacePath={workspacePath}
+          keys={keys}
+          onChooseWorkspace={async () => {
+            const p = await window.api.chooseWorkspace();
+            if (p) {
+              setWorkspacePath(p);
+              await loadWorkspaceData();
+            }
+            return p;
+          }}
+          onSetKey={async (provider, key) => {
+            setKeys(await window.api.setKey(provider, key));
+          }}
+          onFinish={() => setWizardDone(true)}
+        />
+      </Suspense>
     );
   }
 
@@ -184,30 +194,32 @@ export default function App() {
           themeMode={settings?.theme.mode ?? "light"}
           onToggleTheme={toggleTheme}
         />
-        {view === "chat" ? (
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <ChatView cards={cards} />
-          </div>
-        ) : (
-          <div className="content">
-            {view === "home" && <HomeView cards={cards} onNavigate={setView} />}
-            {view === "cards" && <CardsHubView cards={cards} onChanged={refreshCards} />}
-            {view === "artifacts" && <ArtifactsView cards={cards} />}
-            {view === "pipelines" && <PipelinesView cards={cards} />}
-            {view === "tasks" && <TasksView />}
-            {view === "studio" && <StudioView onSettingsChanged={reloadSettings} />}
-            {view === "cost" && <CostView cards={cards} />}
-            {view === "settings" && (
-              <SettingsView
-                keys={keys}
-                settings={settings}
-                workspacePath={workspacePath}
-                onKeysChanged={setKeys}
-                onSettingsChanged={applySettings}
-              />
-            )}
-          </div>
-        )}
+        <Suspense fallback={<ViewLoading />}>
+          {view === "chat" ? (
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <ChatView cards={cards} />
+            </div>
+          ) : (
+            <div className="content">
+              {view === "home" && <HomeView cards={cards} onNavigate={setView} />}
+              {view === "cards" && <CardsHubView cards={cards} onChanged={refreshCards} />}
+              {view === "artifacts" && <ArtifactsView cards={cards} />}
+              {view === "pipelines" && <PipelinesView cards={cards} />}
+              {view === "tasks" && <TasksView />}
+              {view === "studio" && <StudioView onSettingsChanged={reloadSettings} />}
+              {view === "cost" && <CostView cards={cards} />}
+              {view === "settings" && (
+                <SettingsView
+                  keys={keys}
+                  settings={settings}
+                  workspacePath={workspacePath}
+                  onKeysChanged={setKeys}
+                  onSettingsChanged={applySettings}
+                />
+              )}
+            </div>
+          )}
+        </Suspense>
       </div>
     </div>
   );

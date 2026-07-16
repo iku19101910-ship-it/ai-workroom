@@ -508,18 +508,23 @@ function listSuggestions() {
 
 function addSuggestions(items) {
   const data = readJson(suggestionsFile(), { suggestions: [] });
+  const tasks = listTasks();
+  const suggestionKeys = new Set(
+    data.suggestions.map((x) => `${x.file}\u0000${x.due_date}\u0000${x.title}`)
+  );
+  const taskKeys = new Set(
+    tasks
+      .filter((t) => t.source?.file)
+      .map((t) => `${t.source.file}\u0000${t.due_date}\u0000${t.title}`)
+  );
   const added = [];
   for (const s of items) {
     // 同一ファイル・同一日付・同一内容の重複候補は追加しない
-    const dup = data.suggestions.some(
-      (x) => x.file === s.file && x.due_date === s.due_date && x.title === s.title
-    );
-    const dupTask = listTasks().some(
-      (t) => t.source && t.source.file === s.file && t.due_date === s.due_date && t.title === s.title
-    );
-    if (dup || dupTask) continue;
+    const key = `${s.file}\u0000${s.due_date}\u0000${s.title}`;
+    if (suggestionKeys.has(key) || taskKeys.has(key)) continue;
     const full = { id: newId("sug"), created_at: new Date().toISOString(), ...s };
     data.suggestions.push(full);
+    suggestionKeys.add(key);
     added.push(full);
   }
   writeJson(suggestionsFile(), data);
