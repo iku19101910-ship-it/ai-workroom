@@ -1,8 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Sidebar, { ViewId } from "./components/Sidebar";
 import Header from "./components/Header";
+import GlobalSearch from "./components/GlobalSearch";
 import HomeView from "./views/HomeView";
-import type { KeyInfo, Project, ProjectScope, RoleCard, Settings } from "./types";
+import type { KeyInfo, Project, ProjectScope, RoleCard, SearchResult, Settings } from "./types";
 import { appfileUrl } from "./types";
 
 // 初期画面で不要な機能は、選択されたときだけ読み込む。
@@ -103,6 +104,8 @@ export default function App() {
   const [currentProjectId, setCurrentProjectId] = useState<ProjectScope>(null);
   const [loading, setLoading] = useState(true);
   const [wizardDone, setWizardDone] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [openTarget, setOpenTarget] = useState<SearchResult | null>(null);
 
   // 設定をUIへ反映(テーマ属性・背景クラス・パネル不透明度)
   const applySettings = useCallback((s: Settings) => {
@@ -173,6 +176,26 @@ export default function App() {
     await window.api.setCurrentProject(id);
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const openSearchResult = async (result: SearchResult) => {
+    if (currentProjectId !== null) await changeProject(null);
+    setOpenTarget(result);
+    const destinations = { conversation: "chat", doc: "cards", artifact: "artifacts", task: "tasks", card: "cards", pipeline: "pipelines" } as const;
+    setView(destinations[result.type]);
+    if (!(["conversation", "doc", "artifact"] as string[]).includes(result.type)) setOpenTarget(null);
+    setSearchOpen(false);
+  };
+
   if (loading) return null;
 
   // 初回起動時セットアップウィザード(§4.15)
@@ -213,17 +236,18 @@ export default function App() {
           currentProjectId={currentProjectId}
           onProjectChange={changeProject}
           onProjectsChanged={refreshProjects}
+          onOpenSearch={() => setSearchOpen(true)}
         />
         <Suspense fallback={<ViewLoading />}>
           {view === "chat" ? (
             <div style={{ flex: 1, minHeight: 0 }}>
-              <ChatView cards={cards} projects={projects} projectScope={currentProjectId} />
+              <ChatView cards={cards} projects={projects} projectScope={currentProjectId} initialConversationId={openTarget?.type === "conversation" ? openTarget.id : undefined} focusMessageId={openTarget?.type === "conversation" ? openTarget.meta?.message_id ?? undefined : undefined} onTargetConsumed={() => setOpenTarget(null)} />
             </div>
           ) : (
             <div className="content">
               {view === "home" && <HomeView cards={cards} projects={projects} projectScope={currentProjectId} onNavigate={setView} />}
-              {view === "cards" && <CardsHubView cards={cards} projects={projects} projectScope={currentProjectId} onChanged={refreshCards} />}
-              {view === "artifacts" && <ArtifactsView cards={cards} projects={projects} projectScope={currentProjectId} />}
+              {view === "cards" && <CardsHubView cards={cards} projects={projects} projectScope={currentProjectId} onChanged={refreshCards} initialTab={openTarget?.type === "doc" ? "bible" : undefined} initialDocId={openTarget?.type === "doc" ? openTarget.id : undefined} onTargetConsumed={() => setOpenTarget(null)} />}
+              {view === "artifacts" && <ArtifactsView cards={cards} projects={projects} projectScope={currentProjectId} initialOpenId={openTarget?.type === "artifact" ? openTarget.id : undefined} onTargetConsumed={() => setOpenTarget(null)} />}
               {view === "pipelines" && <PipelinesView cards={cards} projects={projects} projectScope={currentProjectId} />}
               {view === "tasks" && <TasksView projects={projects} projectScope={currentProjectId} />}
               {view === "studio" && <StudioView onSettingsChanged={reloadSettings} />}
@@ -241,6 +265,7 @@ export default function App() {
           )}
         </Suspense>
       </div>
+      {searchOpen && <GlobalSearch projects={projects} onClose={() => setSearchOpen(false)} onOpen={openSearchResult} />}
     </div>
   );
 }

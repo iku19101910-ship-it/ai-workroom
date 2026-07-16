@@ -3,7 +3,9 @@ import type { Project, ProjectScope, SharedDoc, SharedDocMeta } from "../types";
 import { matchesProject, projectIdForNew } from "../types";
 import ProjectBadge from "../components/ProjectBadge";
 
-export default function SharedMemoryView({ projects, projectScope }: { projects: Project[]; projectScope: ProjectScope }) {
+export default function SharedMemoryView({ projects, projectScope, initialDocId, onTargetConsumed }: {
+  projects: Project[]; projectScope: ProjectScope; initialDocId?: string; onTargetConsumed?: () => void;
+}) {
   const [docs, setDocs] = useState<SharedDocMeta[]>([]);
   const [editing, setEditing] = useState<Partial<SharedDoc> | null>(null);
 
@@ -20,6 +22,11 @@ export default function SharedMemoryView({ projects, projectScope }: { projects:
     const doc = await window.api.getDoc(id);
     if (doc) setEditing(doc);
   };
+
+  useEffect(() => {
+    if (!initialDocId) return;
+    open(initialDocId).finally(() => onTargetConsumed?.());
+  }, [initialDocId]);
 
   const save = async () => {
     if (!editing?.title?.trim()) {

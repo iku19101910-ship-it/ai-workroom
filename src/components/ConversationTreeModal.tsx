@@ -87,19 +87,23 @@ export default function ConversationTreeModal({
   cards,
   onClose,
   onChanged,
+  initialSelectedId,
 }: {
   conversationId: string;
   cards: RoleCard[];
   onClose: () => void;
   onChanged: () => Promise<void> | void; // 本線切替後にチャット側を再読込させる
+  initialSelectedId?: string | null;
 }) {
   const [conv, setConv] = useState<Conversation | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [compareOpen, setCompareOpen] = useState(false);
 
   useEffect(() => {
     window.api.getConversation(conversationId).then(setConv);
   }, [conversationId]);
+
+  useEffect(() => setSelectedId(initialSelectedId ?? null), [initialSelectedId]);
 
   const childrenMap = useMemo(() => {
     const map = new Map<string | null, Message[]>();

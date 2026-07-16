@@ -62,7 +62,10 @@ interface CompareStream {
   cols: Record<string, string>;
 }
 
-export default function ChatView({ cards, projects, projectScope }: { cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope }) {
+export default function ChatView({ cards, projects, projectScope, initialConversationId, focusMessageId, onTargetConsumed }: {
+  cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope;
+  initialConversationId?: string; focusMessageId?: string; onTargetConsumed?: () => void;
+}) {
   const [convList, setConvList] = useState<ConversationMeta[]>([]);
   const [conv, setConv] = useState<Conversation | null>(null);
   const [targetCardId, setTargetCardId] = useState<string>("");
@@ -91,6 +94,8 @@ export default function ChatView({ cards, projects, projectScope }: { cards: Rol
 
   // §4.5 会話ツリーモーダル(旧「分岐」ビューを統合)
   const [treeOpen, setTreeOpen] = useState(false);
+  const [treeInitialSelectedId, setTreeInitialSelectedId] = useState<string | null>(null);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
 
   // §4.5 複数カード同時送信(比較モード)
   const [compareMode, setCompareMode] = useState(false);
@@ -117,6 +122,29 @@ export default function ChatView({ cards, projects, projectScope }: { cards: Rol
   useEffect(() => {
     if (conv && !matchesProject(conv.project_id, projectScope)) setConv(null);
   }, [projectScope, conv]);
+
+  useEffect(() => {
+    if (!initialConversationId) return;
+    (async () => {
+      const target = await window.api.getConversation(initialConversationId);
+      if (!target) return;
+      setConv(target);
+      setBranchFrom(null);
+      if (focusMessageId) {
+        if (mainline(target).some((m) => m.id === focusMessageId)) {
+          setHighlightMessageId(focusMessageId);
+          setTimeout(() => {
+            document.querySelector(`[data-message-id="${focusMessageId}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 50);
+          setTimeout(() => setHighlightMessageId(null), 2100);
+        } else {
+          setTreeInitialSelectedId(focusMessageId);
+          setTreeOpen(true);
+        }
+      }
+      onTargetConsumed?.();
+    })();
+  }, [initialConversationId, focusMessageId]);
 
   useEffect(() => {
     if (!targetCardId && cards.length > 0) setTargetCardId(cards[0].id);
@@ -504,7 +532,7 @@ export default function ChatView({ cards, projects, projectScope }: { cards: Rol
             const draft = m.clarification ? getClarifyDraft(m) : null;
 
             return (
-              <div key={m.id} className={"msg " + m.author}>
+              <div key={m.id} data-message-id={m.id} className={"msg " + m.author + (highlightMessageId === m.id ? " search-highlight" : "")}>
                 <div className="msg-meta">
                   <span className="msg-author">
                     {m.author === "user" ? "あなた" : cardName(m.role_card_id)}
@@ -860,6 +888,7 @@ export default function ChatView({ cards, projects, projectScope }: { cards: Rol
         <ConversationTreeModal
           conversationId={conv.id}
           cards={cards}
+          initialSelectedId={treeInitialSelectedId}
           onClose={async () => {
             setTreeOpen(false);
             // ツリー内で本線を切り替えた可能性があるため再読込

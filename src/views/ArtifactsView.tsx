@@ -28,7 +28,9 @@ function dedupeTags(tags: string[]): string[] {
   return result;
 }
 
-export default function ArtifactsView({ cards: _cards, projects, projectScope }: { cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope }) {
+export default function ArtifactsView({ cards: _cards, projects, projectScope, initialOpenId, onTargetConsumed }: {
+  cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope; initialOpenId?: string; onTargetConsumed?: () => void;
+}) {
   const [items, setItems] = useState<ArtifactMeta[]>([]);
   const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -100,6 +102,11 @@ export default function ArtifactsView({ cards: _cards, projects, projectScope }:
     setSavedFlash(false);
     setCopiedFlash(false);
   };
+
+  useEffect(() => {
+    if (!initialOpenId) return;
+    openDetail(initialOpenId).finally(() => onTargetConsumed?.());
+  }, [initialOpenId]);
 
   const closeDetail = () => {
     setDetail(null);

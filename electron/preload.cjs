@@ -135,4 +135,5 @@ contextBridge.exposeInMainWorld("api", {
   // トークン記録
   getUsage: invoke("usage:get"),
   listUsageMonths: invoke("usage:months"),
+  globalSearch: invoke("search:global"),
 });

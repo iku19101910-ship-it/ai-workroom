@@ -9,6 +9,7 @@ export default function Header({
   currentProjectId,
   onProjectChange,
   onProjectsChanged,
+  onOpenSearch,
 }: {
   title: string;
   themeMode: "light" | "dark";
@@ -17,6 +18,7 @@ export default function Header({
   currentProjectId: ProjectScope;
   onProjectChange: (id: ProjectScope) => Promise<void>;
   onProjectsChanged: () => Promise<void>;
+  onOpenSearch: () => void;
 }) {
   const [modal, setModal] = useState<"new" | "manage" | null>(null);
   const [newName, setNewName] = useState("");
@@ -76,6 +78,7 @@ export default function Header({
           <option value="__new__">+ 新規プロジェクト</option>
           <option value="__manage__">プロジェクト管理…</option>
         </select>
+        <button className="icon-btn" onClick={onOpenSearch} title="横断検索 (Ctrl+K)">🔍</button>
         <button
           className="icon-btn"
           onClick={onToggleTheme}

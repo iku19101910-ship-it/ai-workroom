@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RoleCardsView from "./RoleCardsView";
 import SharedMemoryView from "./SharedMemoryView";
 import type { Project, ProjectScope, RoleCard } from "../types";
@@ -10,13 +10,23 @@ export default function CardsHubView({
   onChanged,
   projects,
   projectScope,
+  initialTab,
+  initialDocId,
+  onTargetConsumed,
 }: {
   cards: RoleCard[];
   onChanged: () => Promise<void>;
   projects: Project[];
   projectScope: ProjectScope;
+  initialTab?: "cards" | "bible";
+  initialDocId?: string;
+  onTargetConsumed?: () => void;
 }) {
-  const [tab, setTab] = useState<"cards" | "bible">("cards");
+  const [tab, setTab] = useState<"cards" | "bible">(initialTab ?? "cards");
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div>
@@ -34,7 +44,7 @@ export default function CardsHubView({
           📚 共有バイブル
         </button>
       </div>
-      {tab === "cards" ? <RoleCardsView cards={cards} onChanged={onChanged} /> : <SharedMemoryView projects={projects} projectScope={projectScope} />}
+      {tab === "cards" ? <RoleCardsView cards={cards} onChanged={onChanged} /> : <SharedMemoryView projects={projects} projectScope={projectScope} initialDocId={initialDocId} onTargetConsumed={onTargetConsumed} />}
     </div>
   );
 }

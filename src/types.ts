@@ -236,6 +236,16 @@ export interface Project {
 
 export type ProjectScope = string | null | "uncategorized";
 
+export type SearchResultType = "conversation" | "doc" | "artifact" | "task" | "card" | "pipeline";
+export interface SearchResult {
+  type: SearchResultType;
+  id: string;
+  title: string;
+  excerpt: string;
+  project_id: string | null;
+  meta: { message_id?: string | null } | null;
+}
+
 export function matchesProject(itemProjectId: string | null | undefined, scope: ProjectScope): boolean {
   if (scope === null) return true;
   if (scope === "uncategorized") return !itemProjectId;
@@ -360,6 +370,7 @@ declare global {
       onChatEvent: (cb: (channel: ChatEvent, payload: any) => void) => () => void;
       getUsage: (ym: string) => Promise<{ records: UsageRecord[] }>;
       listUsageMonths: () => Promise<string[]>;
+      globalSearch: (query: string) => Promise<SearchResult[]>;
     };
   }
 }
