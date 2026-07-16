@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Artifact, ArtifactMeta, Provider, RoleCard } from "../types";
-import { PROVIDER_LABELS } from "../types";
+import type { Artifact, ArtifactMeta, Project, ProjectScope, Provider, RoleCard } from "../types";
+import { matchesProject, projectIdForNew, PROVIDER_LABELS } from "../types";
+import ProjectBadge from "../components/ProjectBadge";
 
 // タグ文字列(カンマ区切り)を trim・空除去・重複除去した配列にする
 function parseTags(raw: string): string[] {
@@ -27,7 +28,7 @@ function dedupeTags(tags: string[]): string[] {
   return result;
 }
 
-export default function ArtifactsView({ cards: _cards }: { cards: RoleCard[] }) {
+export default function ArtifactsView({ cards: _cards, projects, projectScope }: { cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope }) {
   const [items, setItems] = useState<ArtifactMeta[]>([]);
   const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -48,13 +49,13 @@ export default function ArtifactsView({ cards: _cards }: { cards: RoleCard[] }) 
   const refresh = async (q: string) => {
     const trimmed = q.trim();
     const list = trimmed ? await window.api.searchArtifacts(trimmed) : await window.api.listArtifacts();
-    setItems(list);
+    setItems(list.filter((it) => matchesProject(it.project_id, projectScope)));
   };
 
   useEffect(() => {
     refresh("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [projectScope]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -65,7 +66,7 @@ export default function ArtifactsView({ cards: _cards }: { cards: RoleCard[] }) 
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, projectScope]);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -171,7 +172,7 @@ export default function ArtifactsView({ cards: _cards }: { cards: RoleCard[] }) 
       return;
     }
     const tags = parseTags(manualAdd.tags);
-    await window.api.saveArtifact({ title: manualAdd.title.trim(), tags, content: manualAdd.content });
+    await window.api.saveArtifact({ title: manualAdd.title.trim(), tags, content: manualAdd.content, project_id: projectIdForNew(projectScope) });
     setManualAdd(null);
     await refresh(query);
   };
@@ -242,6 +243,7 @@ export default function ArtifactsView({ cards: _cards }: { cards: RoleCard[] }) 
               )}
               <span style={{ fontWeight: 600 }}>{it.title}</span>
               <span style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                <ProjectBadge projectId={it.project_id} projects={projects} scope={projectScope} />
                 {(it.tags || []).map((t) => (
                   <span key={t} className="tag-chip" style={{ cursor: "default" }}>
                     {t}

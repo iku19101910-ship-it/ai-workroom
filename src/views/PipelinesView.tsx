@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { Clarification, Pipeline, PipelineStep, RoleCard } from "../types";
-import { PROVIDER_LABELS } from "../types";
+import type { Clarification, Pipeline, PipelineStep, Project, ProjectScope, RoleCard } from "../types";
+import { matchesProject, projectIdForNew, PROVIDER_LABELS } from "../types";
+import ProjectBadge from "../components/ProjectBadge";
 
 const EMPTY_PIPELINE: Partial<Pipeline> = {
   name: "",
@@ -91,7 +92,7 @@ function ClarifyCard({
   );
 }
 
-export default function PipelinesView({ cards }: { cards: RoleCard[] }) {
+export default function PipelinesView({ cards, projects, projectScope }: { cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope }) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [editing, setEditing] = useState<Partial<Pipeline> | null>(null);
 
@@ -106,12 +107,15 @@ export default function PipelinesView({ cards }: { cards: RoleCard[] }) {
     { runId: string; conversationId: string; stepIndex: number; pipelineName: string }[]
   >([]);
 
-  const refresh = async () => setPipelines(await window.api.listPipelines());
+  const refresh = async () => {
+    const list = await window.api.listPipelines();
+    setPipelines(list.filter((p) => matchesProject(p.project_id, projectScope)));
+  };
 
   useEffect(() => {
     refresh();
     window.api.pendingClarifications().then(setPending);
-  }, []);
+  }, [projectScope]);
 
   // パイプライン実行イベント購読(§4.4)
   useEffect(() => {
@@ -224,7 +228,7 @@ export default function PipelinesView({ cards }: { cards: RoleCard[] }) {
       alert("すべてのステップで担当カードを選択してください");
       return;
     }
-    await window.api.savePipeline(editing);
+    await window.api.savePipeline({ ...editing, project_id: editing.project_id ?? projectIdForNew(projectScope) });
     setEditing(null);
     await refresh();
   };
@@ -271,7 +275,7 @@ export default function PipelinesView({ cards }: { cards: RoleCard[] }) {
       error: null,
     });
     try {
-      await window.api.runPipeline({ pipelineId: selectedPipeline.id, input: inputText, runId });
+      await window.api.runPipeline({ pipelineId: selectedPipeline.id, input: inputText, runId, projectId: selectedPipeline.project_id ?? projectIdForNew(projectScope) });
     } catch (e: any) {
       setRun((r) => (r ? { ...r, error: String(e?.message ?? e) } : r));
     }
@@ -307,7 +311,7 @@ export default function PipelinesView({ cards }: { cards: RoleCard[] }) {
         <div className="panel-title-row">
           <span className="panel-title">パイプライン</span>
           <span className="panel-title-meta">
-            <button className="btn small" onClick={() => setEditing({ ...EMPTY_PIPELINE, steps: [] })}>
+            <button className="btn small" onClick={() => setEditing({ ...EMPTY_PIPELINE, project_id: projectIdForNew(projectScope), steps: [] })}>
               + 新規パイプライン
             </button>
           </span>
@@ -323,6 +327,7 @@ export default function PipelinesView({ cards }: { cards: RoleCard[] }) {
           <div className="list-row" key={p.id}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 600 }}>{p.name}</div>
+              <ProjectBadge projectId={p.project_id} projects={projects} scope={projectScope} />
             </div>
             <span className="row-actions">
               <span className="badge">{p.steps.length} ステップ</span>

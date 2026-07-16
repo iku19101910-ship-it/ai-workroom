@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Briefing, ConversationMeta, RoleCard, Task, TaskSuggestion, UsageRecord } from "../types";
-import { PROVIDER_LABELS } from "../types";
+import type { Briefing, ConversationMeta, Project, ProjectScope, RoleCard, Task, TaskSuggestion, UsageRecord } from "../types";
+import { matchesProject, PROVIDER_LABELS } from "../types";
+import ProjectBadge from "../components/ProjectBadge";
 import { PROVIDER_ORDER, totalsByProvider } from "../usageUtils";
 import type { ViewId } from "../components/Sidebar";
 
@@ -31,9 +32,13 @@ const BRIEFING_REASON_MESSAGES: Record<string, string> = {
 export default function HomeView({
   cards,
   onNavigate,
+  projects,
+  projectScope,
 }: {
   cards: RoleCard[];
   onNavigate: (v: ViewId) => void;
+  projects: Project[];
+  projectScope: ProjectScope;
 }) {
   const [convs, setConvs] = useState<ConversationMeta[]>([]);
   const [todayRecords, setTodayRecords] = useState<UsageRecord[]>([]);
@@ -55,9 +60,10 @@ export default function HomeView({
         window.api.listTasks(),
         window.api.listSuggestions(),
       ]);
-      setConvs(nextConvs);
+      setConvs(nextConvs.filter((c) => matchesProject(c.project_id, projectScope)));
       setTodayRecords(usage.records.filter((r: UsageRecord) => r.date === today));
       const open = allTasks
+        .filter((t) => matchesProject(t.project_id, projectScope))
         .filter((t) => t.status === "open")
         .sort((a, b) => {
           if (!a.due_date && !b.due_date) return 0;
@@ -69,7 +75,7 @@ export default function HomeView({
       setTasks(open);
       setSuggestions(nextSuggestions);
     })();
-  }, []);
+  }, [projectScope]);
 
   const regenerateBriefing = async () => {
     setBriefingLoading(true);
@@ -209,6 +215,7 @@ export default function HomeView({
             <div className="list-row" key={c.id}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {c.title}
+                <ProjectBadge projectId={c.project_id} projects={projects} scope={projectScope} />
               </span>
               <span className="row-actions muted" style={{ fontSize: 10 }}>
                 {c.updated_at?.slice(5, 10)}
@@ -273,6 +280,7 @@ export default function HomeView({
               <div className="list-row" key={t.id}>
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.title}
+                  <ProjectBadge projectId={t.project_id} projects={projects} scope={projectScope} />
                 </span>
                 {due ? (
                   <span className={"due-label" + (due.urgent ? " urgent" : "")}>{due.text}</span>

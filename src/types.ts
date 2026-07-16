@@ -47,6 +47,7 @@ export interface Message {
 export interface Conversation {
   id: string;
   title: string;
+  project_id?: string | null;
   active_leaf_id: string | null;
   messages: Message[];
   summary_cache?: { boundary_msg_id: string; text: string; model: string; created_at: string } | null;
@@ -57,6 +58,7 @@ export interface Conversation {
 export interface ConversationMeta {
   id: string;
   title: string;
+  project_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +66,7 @@ export interface ConversationMeta {
 export interface SharedDocMeta {
   id: string;
   title: string;
+  project_id?: string | null;
   created_at?: string;
   updated_at: string;
 }
@@ -129,6 +132,7 @@ export interface PipelineStep {
 export interface Pipeline {
   id: string;
   name: string;
+  project_id?: string | null;
   allow_clarification: boolean;
   steps: PipelineStep[];
   created_at: string;
@@ -139,6 +143,7 @@ export interface Pipeline {
 export interface ArtifactMeta {
   id: string;
   title: string;
+  project_id?: string | null;
   tags: string[];
   provider: string | null;
   model: string | null;
@@ -161,6 +166,7 @@ export interface Artifact extends ArtifactMeta {
 export interface Task {
   id: string;
   title: string;
+  project_id?: string | null;
   due_date: string | null;
   status: "open" | "done" | "ignored";
   source: {
@@ -220,6 +226,26 @@ export interface Briefing {
   cardName?: string | null;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  color: string | null;
+  created_at: string;
+  archived: boolean;
+}
+
+export type ProjectScope = string | null | "uncategorized";
+
+export function matchesProject(itemProjectId: string | null | undefined, scope: ProjectScope): boolean {
+  if (scope === null) return true;
+  if (scope === "uncategorized") return !itemProjectId;
+  return itemProjectId === scope;
+}
+
+export function projectIdForNew(scope: ProjectScope): string | null {
+  return scope && scope !== "uncategorized" ? scope : null;
+}
+
 export type AppEvent =
   | "chat:user-message"
   | "chat:delta"
@@ -249,7 +275,8 @@ export function appfileUrl(absPath: string): string {
 declare global {
   interface Window {
     api: {
-      getConfig: () => Promise<{ workspacePath: string | null }>;
+      getConfig: () => Promise<{ workspacePath: string | null; currentProjectId?: ProjectScope }>;
+      setCurrentProject: (id: ProjectScope) => Promise<{ workspacePath: string | null; currentProjectId?: ProjectScope }>;
       chooseWorkspace: () => Promise<string | null>;
       chooseFolder: (title?: string) => Promise<string | null>;
       chooseFile: (opts?: { title?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;
@@ -259,6 +286,9 @@ declare global {
       listModels: (provider: Provider, force?: boolean) => Promise<{ models: ModelInfo[]; error: string | null }>;
       getSettings: () => Promise<Settings>;
       updateSettings: (patch: Partial<Settings>) => Promise<Settings>;
+      listProjects: () => Promise<Project[]>;
+      saveProject: (project: Partial<Project>) => Promise<Project>;
+      archiveProject: (id: string) => Promise<Project>;
       listCards: () => Promise<RoleCard[]>;
       saveCard: (card: Partial<RoleCard>) => Promise<RoleCard>;
       deleteCard: (id: string) => Promise<boolean>;
@@ -268,7 +298,7 @@ declare global {
       deleteDoc: (id: string) => Promise<boolean>;
       listConversations: () => Promise<ConversationMeta[]>;
       getConversation: (id: string) => Promise<Conversation | null>;
-      createConversation: (title?: string) => Promise<Conversation>;
+      createConversation: (title?: string, projectId?: string | null) => Promise<Conversation>;
       renameConversation: (id: string, title: string) => Promise<Conversation>;
       deleteConversation: (id: string) => Promise<boolean>;
       setActiveLeaf: (id: string, msgId: string) => Promise<Conversation>;
@@ -290,7 +320,7 @@ declare global {
       listPipelines: () => Promise<Pipeline[]>;
       savePipeline: (pl: Partial<Pipeline>) => Promise<Pipeline>;
       deletePipeline: (id: string) => Promise<boolean>;
-      runPipeline: (payload: { pipelineId: string; input: string; runId: string }) => Promise<{ conversationId: string }>;
+      runPipeline: (payload: { pipelineId: string; input: string; runId: string; projectId?: string | null }) => Promise<{ conversationId: string }>;
       answerPipeline: (payload: { runId: string; answerText: string }) => Promise<boolean>;
       abortPipeline: (runId: string) => Promise<boolean>;
       pendingClarifications: () => Promise<{ runId: string; conversationId: string; stepIndex: number; pipelineName: string }[]>;
@@ -307,6 +337,7 @@ declare global {
         card_name?: string | null;
         conversation_id?: string | null;
         message_id?: string | null;
+        project_id?: string | null;
       }) => Promise<ArtifactMeta>;
       deleteArtifact: (id: string) => Promise<boolean>;
       searchArtifacts: (query: string) => Promise<ArtifactMeta[]>;

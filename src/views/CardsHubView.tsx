@@ -1,16 +1,20 @@
 import { useState } from "react";
 import RoleCardsView from "./RoleCardsView";
 import SharedMemoryView from "./SharedMemoryView";
-import type { RoleCard } from "../types";
+import type { Project, ProjectScope, RoleCard } from "../types";
 
 // 役割カードと共有バイブルの統合画面(タブ切替)。
 // カードは共有資料を参照する関係なので、同じ場所で管理できるようにする。
 export default function CardsHubView({
   cards,
   onChanged,
+  projects,
+  projectScope,
 }: {
   cards: RoleCard[];
   onChanged: () => Promise<void>;
+  projects: Project[];
+  projectScope: ProjectScope;
 }) {
   const [tab, setTab] = useState<"cards" | "bible">("cards");
 
@@ -30,7 +34,7 @@ export default function CardsHubView({
           📚 共有バイブル
         </button>
       </div>
-      {tab === "cards" ? <RoleCardsView cards={cards} onChanged={onChanged} /> : <SharedMemoryView />}
+      {tab === "cards" ? <RoleCardsView cards={cards} onChanged={onChanged} /> : <SharedMemoryView projects={projects} projectScope={projectScope} />}
     </div>
   );
 }

@@ -25,6 +25,7 @@ const EVENT_CHANNELS = [
 contextBridge.exposeInMainWorld("api", {
   // アプリ設定 / ワークスペース
   getConfig: invoke("app:getConfig"),
+  setCurrentProject: invoke("app:setCurrentProject"),
   chooseWorkspace: invoke("app:chooseWorkspace"),
   chooseFolder: invoke("dialog:chooseFolder"),
   chooseFile: invoke("dialog:chooseFile"),
@@ -40,6 +41,11 @@ contextBridge.exposeInMainWorld("api", {
   // 設定
   getSettings: invoke("settings:get"),
   updateSettings: invoke("settings:update"),
+
+  // プロジェクト
+  listProjects: invoke("projects:list"),
+  saveProject: invoke("projects:save"),
+  archiveProject: invoke("projects:archive"),
 
   // 役割カード
   listCards: invoke("cards:list"),

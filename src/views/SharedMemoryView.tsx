@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
-import type { SharedDoc, SharedDocMeta } from "../types";
+import type { Project, ProjectScope, SharedDoc, SharedDocMeta } from "../types";
+import { matchesProject, projectIdForNew } from "../types";
+import ProjectBadge from "../components/ProjectBadge";
 
-export default function SharedMemoryView() {
+export default function SharedMemoryView({ projects, projectScope }: { projects: Project[]; projectScope: ProjectScope }) {
   const [docs, setDocs] = useState<SharedDocMeta[]>([]);
   const [editing, setEditing] = useState<Partial<SharedDoc> | null>(null);
 
-  const refresh = async () => setDocs(await window.api.listDocs());
+  const refresh = async () => {
+    const list = await window.api.listDocs();
+    setDocs(list.filter((d) => matchesProject(d.project_id, projectScope)));
+  };
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [projectScope]);
 
   const open = async (id: string) => {
     const doc = await window.api.getDoc(id);
@@ -21,7 +26,7 @@ export default function SharedMemoryView() {
       alert("タイトルを入力してください");
       return;
     }
-    await window.api.saveDoc(editing);
+    await window.api.saveDoc({ ...editing, project_id: editing.project_id ?? projectIdForNew(projectScope) });
     setEditing(null);
     await refresh();
   };
@@ -38,7 +43,7 @@ export default function SharedMemoryView() {
         <div className="panel-title-row">
           <span className="panel-title">共有バイブル(共有メモリ)</span>
           <span className="panel-title-meta">
-            <button className="btn small" onClick={() => setEditing({ title: "", content: "" })}>
+            <button className="btn small" onClick={() => setEditing({ title: "", content: "", project_id: projectIdForNew(projectScope) })}>
               + 新規資料
             </button>
           </span>
@@ -50,7 +55,7 @@ export default function SharedMemoryView() {
         {docs.length === 0 && <div className="empty-state">まだ資料がありません</div>}
         {docs.map((d) => (
           <div className="list-row" key={d.id}>
-            <span>{d.title}</span>
+            <span>{d.title} <ProjectBadge projectId={d.project_id} projects={projects} scope={projectScope} /></span>
             <span className="row-actions">
               <span className="muted" style={{ fontSize: 10 }}>
                 更新 {d.updated_at?.slice(0, 10)}

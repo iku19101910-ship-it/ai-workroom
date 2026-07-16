@@ -130,13 +130,13 @@ async function continueRun(run, emit, extraAnswer) {
 }
 
 // 実行開始。会話を新規作成してログを残す。
-async function runPipeline({ pipelineId, input, runId }, emit) {
+async function runPipeline({ pipelineId, input, runId, projectId }, emit) {
   const pipeline = ws.getPipeline(pipelineId);
   if (!pipeline) throw new Error("パイプラインが見つかりません");
   if (!pipeline.steps || pipeline.steps.length === 0) throw new Error("ステップがありません");
 
   const date = new Date().toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  const conv = ws.createConversation(`【PL】${pipeline.name} ${date}`);
+  const conv = ws.createConversation(`【PL】${pipeline.name} ${date}`, projectId ?? null);
 
   const run = {
     id: runId,

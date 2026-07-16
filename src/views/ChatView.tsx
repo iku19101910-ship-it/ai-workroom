@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Conversation, ConversationMeta, Message, ModelInfo, Provider, RoleCard } from "../types";
-import { PROVIDER_LABELS } from "../types";
+import type { Conversation, ConversationMeta, Message, ModelInfo, Project, ProjectScope, Provider, RoleCard } from "../types";
+import { matchesProject, projectIdForNew, PROVIDER_LABELS } from "../types";
 import ModelPicker from "../components/ModelPicker";
 import ConversationTreeModal from "../components/ConversationTreeModal";
+import ProjectBadge from "../components/ProjectBadge";
 
 // §保管庫: 本文の1行目を指定文字数以内に切り出す(タイトル初期値用)
 function firstLinePreview(text: string, maxLen: number): string {
@@ -61,7 +62,7 @@ interface CompareStream {
   cols: Record<string, string>;
 }
 
-export default function ChatView({ cards }: { cards: RoleCard[] }) {
+export default function ChatView({ cards, projects, projectScope }: { cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope }) {
   const [convList, setConvList] = useState<ConversationMeta[]>([]);
   const [conv, setConv] = useState<Conversation | null>(null);
   const [targetCardId, setTargetCardId] = useState<string>("");
@@ -105,12 +106,17 @@ export default function ChatView({ cards }: { cards: RoleCard[] }) {
   const targetCard = cards.find((c) => c.id === targetCardId) ?? null;
 
   const refreshConvList = useCallback(async () => {
-    setConvList(await window.api.listConversations());
-  }, []);
+    const list = await window.api.listConversations();
+    setConvList(list.filter((c) => matchesProject(c.project_id, projectScope)));
+  }, [projectScope]);
 
   useEffect(() => {
     refreshConvList();
   }, [refreshConvList]);
+
+  useEffect(() => {
+    if (conv && !matchesProject(conv.project_id, projectScope)) setConv(null);
+  }, [projectScope, conv]);
 
   useEffect(() => {
     if (!targetCardId && cards.length > 0) setTargetCardId(cards[0].id);
@@ -180,7 +186,7 @@ export default function ChatView({ cards }: { cards: RoleCard[] }) {
   };
 
   const newConversation = async () => {
-    const c = await window.api.createConversation();
+    const c = await window.api.createConversation(undefined, projectIdForNew(projectScope));
     await refreshConvList();
     setConv(c);
     setBranchFrom(null);
@@ -225,7 +231,7 @@ export default function ChatView({ cards }: { cards: RoleCard[] }) {
       }
       let c = conv;
       if (!c) {
-        c = await window.api.createConversation(body.slice(0, 24));
+        c = await window.api.createConversation(body.slice(0, 24), projectIdForNew(projectScope));
         await refreshConvList();
         setConv(c);
       }
@@ -259,7 +265,7 @@ export default function ChatView({ cards }: { cards: RoleCard[] }) {
     }
     let c = conv;
     if (!c) {
-      c = await window.api.createConversation(body.slice(0, 24));
+      c = await window.api.createConversation(body.slice(0, 24), projectIdForNew(projectScope));
       await refreshConvList();
       setConv(c);
     }
@@ -366,6 +372,7 @@ export default function ChatView({ cards }: { cards: RoleCard[] }) {
       card_name: cardName(saveTarget.role_card_id),
       conversation_id: conv.id,
       message_id: saveTarget.id,
+      project_id: conv.project_id ?? null,
     });
     setSaveDone(true);
     setTimeout(() => {
@@ -469,6 +476,7 @@ export default function ChatView({ cards }: { cards: RoleCard[] }) {
               onClick={() => openConversation(c.id)}
             >
               <span className="conv-title">{c.title}</span>
+              <ProjectBadge projectId={c.project_id} projects={projects} scope={projectScope} />
               <span className="conv-date">{c.updated_at?.slice(0, 10)}</span>
             </button>
           ))}

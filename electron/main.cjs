@@ -82,13 +82,14 @@ function seedExamPipeline() {
 function registerIpc() {
   // ---- アプリ設定 / ワークスペース選択 ----
   ipcMain.handle("app:getConfig", () => getAppConfig());
+  ipcMain.handle("app:setCurrentProject", (_e, id) => setAppConfig({ currentProjectId: id }));
   ipcMain.handle("app:chooseWorkspace", async () => {
     const result = await dialog.showOpenDialog(win, {
       title: "ワークスペースフォルダを選択(Google Drive等の同期フォルダ内を推奨)",
       properties: ["openDirectory", "createDirectory"],
     });
     if (result.canceled || !result.filePaths[0]) return null;
-    setAppConfig({ workspacePath: result.filePaths[0] });
+    setAppConfig({ workspacePath: result.filePaths[0], currentProjectId: null });
     ws.initWorkspace();
     try {
       ws.seedExampleCards();
@@ -132,6 +133,11 @@ function registerIpc() {
   ipcMain.handle("settings:get", () => ws.getSettings());
   ipcMain.handle("settings:update", (_e, patch) => ws.updateSettings(patch));
 
+  // ---- プロジェクト ----
+  ipcMain.handle("projects:list", () => ws.listProjects());
+  ipcMain.handle("projects:save", (_e, project) => ws.saveProject(project));
+  ipcMain.handle("projects:archive", (_e, id) => ws.archiveProject(id));
+
   // ---- 役割カード ----
   ipcMain.handle("cards:list", () => ws.listRoleCards());
   ipcMain.handle("cards:save", (_e, card) => ws.saveRoleCard(card));
@@ -146,7 +152,7 @@ function registerIpc() {
   // ---- 会話 ----
   ipcMain.handle("convs:list", () => ws.listConversations());
   ipcMain.handle("convs:get", (_e, id) => ws.getConversation(id));
-  ipcMain.handle("convs:create", (_e, title) => ws.createConversation(title));
+  ipcMain.handle("convs:create", (_e, title, projectId) => ws.createConversation(title, projectId));
   ipcMain.handle("convs:rename", (_e, id, title) => ws.renameConversation(id, title));
   ipcMain.handle("convs:delete", (_e, id) => ws.deleteConversation(id));
   ipcMain.handle("convs:setActiveLeaf", (_e, id, msgId) => ws.setActiveLeaf(id, msgId));

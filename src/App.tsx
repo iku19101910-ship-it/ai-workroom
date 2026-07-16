@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Sidebar, { ViewId } from "./components/Sidebar";
 import Header from "./components/Header";
 import HomeView from "./views/HomeView";
-import type { KeyInfo, RoleCard, Settings } from "./types";
+import type { KeyInfo, Project, ProjectScope, RoleCard, Settings } from "./types";
 import { appfileUrl } from "./types";
 
 // 初期画面で不要な機能は、選択されたときだけ読み込む。
@@ -99,6 +99,8 @@ export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [keys, setKeys] = useState<KeyInfo[]>([]);
   const [cards, setCards] = useState<RoleCard[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [currentProjectId, setCurrentProjectId] = useState<ProjectScope>(null);
   const [loading, setLoading] = useState(true);
   const [wizardDone, setWizardDone] = useState(false);
 
@@ -125,18 +127,27 @@ export default function App() {
     }
   }, []);
 
+  const refreshProjects = useCallback(async () => {
+    try {
+      setProjects(await window.api.listProjects());
+    } catch {
+      setProjects([]);
+    }
+  }, []);
+
   const reloadSettings = useCallback(async () => {
     applySettings(await window.api.getSettings());
   }, [applySettings]);
 
   const loadWorkspaceData = useCallback(async () => {
-    await Promise.all([reloadSettings(), refreshCards()]);
-  }, [reloadSettings, refreshCards]);
+    await Promise.all([reloadSettings(), refreshCards(), refreshProjects()]);
+  }, [reloadSettings, refreshCards, refreshProjects]);
 
   useEffect(() => {
     (async () => {
       const cfg = await window.api.getConfig();
       setWorkspacePath(cfg.workspacePath);
+      setCurrentProjectId(cfg.currentProjectId ?? null);
       try {
         await Promise.all([
           refreshKeys(),
@@ -155,6 +166,11 @@ export default function App() {
       theme: { ...settings.theme, mode },
     });
     applySettings(next);
+  };
+
+  const changeProject = async (id: ProjectScope) => {
+    setCurrentProjectId(id);
+    await window.api.setCurrentProject(id);
   };
 
   if (loading) return null;
@@ -193,19 +209,23 @@ export default function App() {
           title={VIEW_TITLES[view]}
           themeMode={settings?.theme.mode ?? "light"}
           onToggleTheme={toggleTheme}
+          projects={projects}
+          currentProjectId={currentProjectId}
+          onProjectChange={changeProject}
+          onProjectsChanged={refreshProjects}
         />
         <Suspense fallback={<ViewLoading />}>
           {view === "chat" ? (
             <div style={{ flex: 1, minHeight: 0 }}>
-              <ChatView cards={cards} />
+              <ChatView cards={cards} projects={projects} projectScope={currentProjectId} />
             </div>
           ) : (
             <div className="content">
-              {view === "home" && <HomeView cards={cards} onNavigate={setView} />}
-              {view === "cards" && <CardsHubView cards={cards} onChanged={refreshCards} />}
-              {view === "artifacts" && <ArtifactsView cards={cards} />}
-              {view === "pipelines" && <PipelinesView cards={cards} />}
-              {view === "tasks" && <TasksView />}
+              {view === "home" && <HomeView cards={cards} projects={projects} projectScope={currentProjectId} onNavigate={setView} />}
+              {view === "cards" && <CardsHubView cards={cards} projects={projects} projectScope={currentProjectId} onChanged={refreshCards} />}
+              {view === "artifacts" && <ArtifactsView cards={cards} projects={projects} projectScope={currentProjectId} />}
+              {view === "pipelines" && <PipelinesView cards={cards} projects={projects} projectScope={currentProjectId} />}
+              {view === "tasks" && <TasksView projects={projects} projectScope={currentProjectId} />}
               {view === "studio" && <StudioView onSettingsChanged={reloadSettings} />}
               {view === "cost" && <CostView cards={cards} />}
               {view === "settings" && (

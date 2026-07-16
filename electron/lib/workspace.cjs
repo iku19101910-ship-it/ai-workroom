@@ -61,6 +61,8 @@ function initWorkspace() {
   if (!fs.existsSync(settingsFile)) writeJson(settingsFile, DEFAULT_SETTINGS);
   const tasksFile = path.join(root, "tasks.json");
   if (!fs.existsSync(tasksFile)) writeJson(tasksFile, { tasks: [] });
+  const projectsFile = path.join(root, "projects.json");
+  if (!fs.existsSync(projectsFile)) writeJson(projectsFile, { projects: [] });
   const smIndex = path.join(root, "shared_memory", "index.json");
   if (!fs.existsSync(smIndex)) writeJson(smIndex, { docs: [] });
   const convIndex = path.join(root, "conversations", "index.json");
@@ -98,6 +100,42 @@ function seedExampleCards() {
   }
   updateSettings({ examples_seeded: true });
   return true;
+}
+
+// ---- プロジェクト ----
+function projectsFile() {
+  return path.join(wsRoot(), "projects.json");
+}
+
+function listProjects() {
+  return readJson(projectsFile(), { projects: [] }).projects;
+}
+
+function saveProject(project) {
+  const data = readJson(projectsFile(), { projects: [] });
+  const now = new Date().toISOString();
+  if (!project.id) {
+    project.id = newId("prj");
+    const full = {
+      id: project.id,
+      name: project.name || "新しいプロジェクト",
+      color: project.color ?? null,
+      created_at: now,
+      archived: false,
+    };
+    data.projects.push(full);
+    writeJson(projectsFile(), data);
+    return full;
+  }
+  const pos = data.projects.findIndex((p) => p.id === project.id);
+  if (pos < 0) throw new Error("プロジェクトが見つかりません: " + project.id);
+  data.projects[pos] = { ...data.projects[pos], ...project, id: data.projects[pos].id };
+  writeJson(projectsFile(), data);
+  return data.projects[pos];
+}
+
+function archiveProject(id) {
+  return saveProject({ id, archived: true });
 }
 
 // ---- 設定 ----
@@ -190,7 +228,7 @@ function saveSharedDoc(doc) {
   const now = new Date().toISOString();
   const idx = readJson(smIndexFile(), { docs: [] });
   if (!doc.id) doc.id = newId("sm");
-  const meta = { id: doc.id, title: doc.title || "無題", updated_at: now };
+  const meta = { id: doc.id, title: doc.title || "無題", project_id: doc.project_id ?? null, updated_at: now };
   const pos = idx.docs.findIndex((d) => d.id === doc.id);
   if (pos >= 0) idx.docs[pos] = { ...idx.docs[pos], ...meta };
   else idx.docs.push({ ...meta, created_at: now });
@@ -227,11 +265,12 @@ function getConversation(id) {
   return readJson(convFile(id), null);
 }
 
-function createConversation(title) {
+function createConversation(title, projectId = null) {
   const now = new Date().toISOString();
   const conv = {
     id: newId("conv"),
     title: title || "新しい会話",
+    project_id: projectId ?? null,
     active_leaf_id: null,
     messages: [],
     created_at: now,
@@ -239,7 +278,7 @@ function createConversation(title) {
   };
   writeJson(convFile(conv.id), conv);
   const idx = readJson(convIndexFile(), { conversations: [] });
-  idx.conversations.push({ id: conv.id, title: conv.title, created_at: now, updated_at: now });
+  idx.conversations.push({ id: conv.id, title: conv.title, project_id: conv.project_id, created_at: now, updated_at: now });
   writeJson(convIndexFile(), idx);
   return conv;
 }
@@ -247,7 +286,7 @@ function createConversation(title) {
 function touchConvIndex(conv) {
   const idx = readJson(convIndexFile(), { conversations: [] });
   const pos = idx.conversations.findIndex((c) => c.id === conv.id);
-  const meta = { id: conv.id, title: conv.title, created_at: conv.created_at, updated_at: conv.updated_at };
+  const meta = { id: conv.id, title: conv.title, project_id: conv.project_id ?? null, created_at: conv.created_at, updated_at: conv.updated_at };
   if (pos >= 0) idx.conversations[pos] = meta;
   else idx.conversations.push(meta);
   writeJson(convIndexFile(), idx);
@@ -408,6 +447,7 @@ function saveArtifact(art) {
       conversation_id: art.conversation_id || null,
       message_id: art.message_id || null,
       context: deriveArtifactContext(art.conversation_id, art.message_id),
+      project_id: art.project_id ?? null,
       file: art.id + ".md",
       created_at: now,
       updated_at: now,
@@ -595,6 +635,7 @@ function savePipeline(pl) {
   const full = {
     id: pl.id,
     name: pl.name || "無名パイプライン",
+    project_id: pl.project_id ?? null,
     allow_clarification: pl.allow_clarification !== false,
     steps: (pl.steps || []).map((s) => ({
       role_card_id: s.role_card_id,
@@ -658,6 +699,9 @@ function listUsageMonths() {
 module.exports = {
   initWorkspace,
   seedExampleCards,
+  listProjects,
+  saveProject,
+  archiveProject,
   getSettings,
   updateSettings,
   listRoleCards,

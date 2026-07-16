@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Task, TaskSuggestion } from "../types";
+import type { Project, ProjectScope, Task, TaskSuggestion } from "../types";
+import { matchesProject, projectIdForNew } from "../types";
+import ProjectBadge from "../components/ProjectBadge";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -40,7 +42,7 @@ function basename(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
-export default function TasksView() {
+export default function TasksView({ projects, projectScope }: { projects: Project[]; projectScope: ProjectScope }) {
   const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [scanFolders, setScanFolders] = useState<string[]>([]);
@@ -57,8 +59,9 @@ export default function TasksView() {
   }, []);
 
   const loadTasks = useCallback(async () => {
-    setTasks(await window.api.listTasks());
-  }, []);
+    const list = await window.api.listTasks();
+    setTasks(list.filter((t) => matchesProject(t.project_id, projectScope)));
+  }, [projectScope]);
 
   const loadFolders = useCallback(async () => {
     try {
@@ -111,7 +114,10 @@ export default function TasksView() {
   };
 
   const handleResolve = async (id: string, accept: boolean) => {
-    await window.api.resolveSuggestion(id, accept);
+    const task = await window.api.resolveSuggestion(id, accept);
+    if (accept && task) {
+      await window.api.saveTask({ id: task.id, project_id: projectIdForNew(projectScope) });
+    }
     await loadSuggestions();
     if (accept) await loadTasks();
   };
@@ -143,6 +149,7 @@ export default function TasksView() {
       status: "open",
       source: null,
       completed_at: null,
+      project_id: projectIdForNew(projectScope),
     });
     setNewTitle("");
     setNewDueDate("");
@@ -262,6 +269,7 @@ export default function TasksView() {
             <div className="list-row" key={t.id}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{t.title}</div>
+                <ProjectBadge projectId={t.project_id} projects={projects} scope={projectScope} />
               </div>
               <span className="row-actions">
                 {due && <span className={"due-label" + (due.urgent ? " urgent" : "")}>{due.text}</span>}
@@ -288,6 +296,7 @@ export default function TasksView() {
                 <div className="list-row" key={t.id}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div className="task-done">{t.title}</div>
+                    <ProjectBadge projectId={t.project_id} projects={projects} scope={projectScope} />
                   </div>
                   <span className="row-actions">
                     {due && <span className="due-label">{due.text}</span>}
