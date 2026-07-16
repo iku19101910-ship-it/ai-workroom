@@ -1,0 +1,26 @@
+# 依存・ビルド成果物
+node_modules/
+dist/
+release/
+
+# 同じフォルダに同居している別プロジェクト(それぞれ独立管理)
+AdaptiveStickFighter/
+ASF_Lite/
+design-warehouse/
+.ai-workspace/
+
+# エージェント・エディタ設定(ローカル・個人環境向け)
+.agents/
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# OS・一時ファイル
+Thumbs.db
+Desktop.ini
+*.log
+
+# 念のため: APIキーや秘密情報をリポジトリに入れない
+# (本アプリはキーをOS暗号化でuserDataに保存するため、プロジェクト内には存在しない設計)
+*.env
+keys*.json
