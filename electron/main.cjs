@@ -14,6 +14,7 @@ const wizard = require("./lib/wizard.cjs");
 const { extractText } = require("./lib/extract.cjs");
 const { cleanupTrash } = require("./lib/fsutil.cjs");
 const search = require("./lib/search.cjs");
+const handoff = require("./lib/handoff.cjs");
 
 // ローカルファイル(背景画像・動画、生成メディア)をレンダラーに配信するためのスキーム
 protocol.registerSchemesAsPrivileged([
@@ -236,6 +237,11 @@ function registerIpc() {
   ipcMain.handle("usage:get", (_e, ym) => ws.getUsage(ym));
   ipcMain.handle("usage:months", () => ws.listUsageMonths());
   ipcMain.handle("search:global", (_e, query) => search.searchAll(query));
+  ipcMain.handle("handoff:generate", (_e, conversationId) => handoff.generateHandoff(conversationId));
+  ipcMain.handle("handoff:auto", (_e, conversationId) => {
+    handoff.maybeAutoHandoff(conversationId);
+    return true;
+  });
 }
 
 app.whenReady().then(() => {

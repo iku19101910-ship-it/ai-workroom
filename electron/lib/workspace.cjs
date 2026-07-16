@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS = {
   scan: { folders: [], interval_minutes: 30 },
   usage_prices: {},
   chat: { history_pairs: 10, max_tokens: 4096 },
+  handoff: { auto: true, min_new_messages: 6 },
 };
 
 // ---- 初期化 ----
@@ -148,6 +149,7 @@ function getSettings() {
     theme: { ...DEFAULT_SETTINGS.theme, ...(s.theme || {}), background: { ...DEFAULT_SETTINGS.theme.background, ...((s.theme || {}).background || {}) } },
     scan: { ...DEFAULT_SETTINGS.scan, ...(s.scan || {}) },
     chat: { ...DEFAULT_SETTINGS.chat, ...(s.chat || {}) },
+    handoff: { ...DEFAULT_SETTINGS.handoff, ...(s.handoff || {}) },
   };
 }
 
@@ -345,6 +347,15 @@ function setActiveLeaf(convId, msgId) {
   conv.active_leaf_id = msgId;
   saveConversation(conv);
   return conv;
+}
+
+function addHandoff(convId, handoff) {
+  const conv = getConversation(convId);
+  if (!conv) throw new Error("会話が見つかりません: " + convId);
+  if (!Array.isArray(conv.handoffs)) conv.handoffs = [];
+  conv.handoffs.push(handoff);
+  saveConversation(conv);
+  return handoff;
 }
 
 function renameConversation(convId, title) {
@@ -719,6 +730,7 @@ module.exports = {
   updateMessage,
   setSummaryCache,
   setActiveLeaf,
+  addHandoff,
   renameConversation,
   deleteConversation,
   mainlineMessages,

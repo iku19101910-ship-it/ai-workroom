@@ -136,4 +136,6 @@ contextBridge.exposeInMainWorld("api", {
   getUsage: invoke("usage:get"),
   listUsageMonths: invoke("usage:months"),
   globalSearch: invoke("search:global"),
+  generateHandoff: invoke("handoff:generate"),
+  autoHandoff: invoke("handoff:auto"),
 });

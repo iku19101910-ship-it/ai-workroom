@@ -51,6 +51,7 @@ export interface Conversation {
   active_leaf_id: string | null;
   messages: Message[];
   summary_cache?: { boundary_msg_id: string; text: string; model: string; created_at: string } | null;
+  handoffs?: Handoff[];
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +107,7 @@ export interface Settings {
   scan: { folders: string[]; interval_minutes: number };
   usage_prices: Record<string, { input?: number; output?: number }>; // USD / 100万トークン
   chat: { history_pairs: number; max_tokens: number };
+  handoff: { auto: boolean; min_new_messages: number };
   examples_seeded?: boolean;
   exam_pipeline_seeded?: boolean;
 }
@@ -224,6 +226,15 @@ export interface Briefing {
   text: string | null;
   reason: string | null;
   cardName?: string | null;
+}
+
+export interface Handoff {
+  id: string;
+  created_at: string;
+  decisions: string[];
+  open_issues: string[];
+  next_steps: string[];
+  model: string;
 }
 
 export interface Project {
@@ -371,6 +382,8 @@ declare global {
       getUsage: (ym: string) => Promise<{ records: UsageRecord[] }>;
       listUsageMonths: () => Promise<string[]>;
       globalSearch: (query: string) => Promise<SearchResult[]>;
+      generateHandoff: (conversationId: string) => Promise<Handoff>;
+      autoHandoff: (conversationId: string) => Promise<boolean>;
     };
   }
 }

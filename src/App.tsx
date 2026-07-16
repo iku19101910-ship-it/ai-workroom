@@ -3,8 +3,8 @@ import Sidebar, { ViewId } from "./components/Sidebar";
 import Header from "./components/Header";
 import GlobalSearch from "./components/GlobalSearch";
 import HomeView from "./views/HomeView";
-import type { KeyInfo, Project, ProjectScope, RoleCard, SearchResult, Settings } from "./types";
-import { appfileUrl } from "./types";
+import type { Handoff, KeyInfo, Project, ProjectScope, RoleCard, SearchResult, Settings } from "./types";
+import { appfileUrl, projectIdForNew } from "./types";
 
 // 初期画面で不要な機能は、選択されたときだけ読み込む。
 const SetupWizard = lazy(() => import("./components/SetupWizard"));
@@ -106,6 +106,7 @@ export default function App() {
   const [wizardDone, setWizardDone] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [openTarget, setOpenTarget] = useState<SearchResult | null>(null);
+  const [chatLaunch, setChatLaunch] = useState<{ conversationId: string; presetText: string } | null>(null);
 
   // 設定をUIへ反映(テーマ属性・背景クラス・パネル不透明度)
   const applySettings = useCallback((s: Settings) => {
@@ -196,6 +197,20 @@ export default function App() {
     setSearchOpen(false);
   };
 
+  const continueFromHandoff = async (handoff: Handoff) => {
+    const conversation = await window.api.createConversation("引き継ぎからの続き", projectIdForNew(currentProjectId));
+    const presetText = [
+      "【前回からの引き継ぎ】",
+      `決定事項: ${handoff.decisions.join(" / ") || "なし"}`,
+      `未解決: ${handoff.open_issues.join(" / ") || "なし"}`,
+      `次の作業: ${handoff.next_steps.join(" / ") || "なし"}`,
+      "",
+      "",
+    ].join("\n");
+    setChatLaunch({ conversationId: conversation.id, presetText });
+    setView("chat");
+  };
+
   if (loading) return null;
 
   // 初回起動時セットアップウィザード(§4.15)
@@ -241,11 +256,11 @@ export default function App() {
         <Suspense fallback={<ViewLoading />}>
           {view === "chat" ? (
             <div style={{ flex: 1, minHeight: 0 }}>
-              <ChatView cards={cards} projects={projects} projectScope={currentProjectId} initialConversationId={openTarget?.type === "conversation" ? openTarget.id : undefined} focusMessageId={openTarget?.type === "conversation" ? openTarget.meta?.message_id ?? undefined : undefined} onTargetConsumed={() => setOpenTarget(null)} />
+              <ChatView cards={cards} projects={projects} projectScope={currentProjectId} initialConversationId={chatLaunch?.conversationId ?? (openTarget?.type === "conversation" ? openTarget.id : undefined)} focusMessageId={openTarget?.type === "conversation" ? openTarget.meta?.message_id ?? undefined : undefined} presetText={chatLaunch?.presetText} onTargetConsumed={() => { setOpenTarget(null); setChatLaunch(null); }} />
             </div>
           ) : (
             <div className="content">
-              {view === "home" && <HomeView cards={cards} projects={projects} projectScope={currentProjectId} onNavigate={setView} />}
+              {view === "home" && <HomeView cards={cards} projects={projects} projectScope={currentProjectId} onNavigate={setView} onContinue={continueFromHandoff} />}
               {view === "cards" && <CardsHubView cards={cards} projects={projects} projectScope={currentProjectId} onChanged={refreshCards} initialTab={openTarget?.type === "doc" ? "bible" : undefined} initialDocId={openTarget?.type === "doc" ? openTarget.id : undefined} onTargetConsumed={() => setOpenTarget(null)} />}
               {view === "artifacts" && <ArtifactsView cards={cards} projects={projects} projectScope={currentProjectId} initialOpenId={openTarget?.type === "artifact" ? openTarget.id : undefined} onTargetConsumed={() => setOpenTarget(null)} />}
               {view === "pipelines" && <PipelinesView cards={cards} projects={projects} projectScope={currentProjectId} />}

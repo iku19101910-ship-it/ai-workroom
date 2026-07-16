@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Briefing, ConversationMeta, Project, ProjectScope, RoleCard, Task, TaskSuggestion, UsageRecord } from "../types";
+import type { Briefing, ConversationMeta, Handoff, Project, ProjectScope, RoleCard, Task, TaskSuggestion, UsageRecord } from "../types";
 import { matchesProject, PROVIDER_LABELS } from "../types";
 import ProjectBadge from "../components/ProjectBadge";
 import { PROVIDER_ORDER, totalsByProvider } from "../usageUtils";
@@ -34,11 +34,13 @@ export default function HomeView({
   onNavigate,
   projects,
   projectScope,
+  onContinue,
 }: {
   cards: RoleCard[];
   onNavigate: (v: ViewId) => void;
   projects: Project[];
   projectScope: ProjectScope;
+  onContinue: (handoff: Handoff) => void;
 }) {
   const [convs, setConvs] = useState<ConversationMeta[]>([]);
   const [todayRecords, setTodayRecords] = useState<UsageRecord[]>([]);
@@ -46,6 +48,7 @@ export default function HomeView({
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
+  const [latestHandoff, setLatestHandoff] = useState<{ conversationId: string; title: string; handoff: Handoff } | null>(null);
 
   useEffect(() => {
     // ブリーフィングは初回生成にAI呼び出しで数秒かかることがあるため、
@@ -60,7 +63,14 @@ export default function HomeView({
         window.api.listTasks(),
         window.api.listSuggestions(),
       ]);
-      setConvs(nextConvs.filter((c) => matchesProject(c.project_id, projectScope)));
+      const scopedConvs = nextConvs.filter((c) => matchesProject(c.project_id, projectScope));
+      setConvs(scopedConvs);
+      const fullConvs = await Promise.all(scopedConvs.slice(0, 20).map((c) => window.api.getConversation(c.id)));
+      const handoffs = fullConvs.flatMap((c) => {
+        const latest = c?.handoffs?.[c.handoffs.length - 1];
+        return c && latest ? [{ conversationId: c.id, title: c.title, handoff: latest }] : [];
+      }).sort((a, b) => b.handoff.created_at.localeCompare(a.handoff.created_at));
+      setLatestHandoff(handoffs[0] ?? null);
       setTodayRecords(usage.records.filter((r: UsageRecord) => r.date === today));
       const open = allTasks
         .filter((t) => matchesProject(t.project_id, projectScope))
@@ -250,6 +260,16 @@ export default function HomeView({
           ))}
         </div>
       </div>
+
+      {latestHandoff && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <div className="panel-title-row"><span className="panel-title">📝 最新の引き継ぎ</span><span className="panel-title-meta">{latestHandoff.title}</span></div>
+          {latestHandoff.handoff.decisions.length > 0 && <div><strong>決定事項:</strong> {latestHandoff.handoff.decisions.join(" / ")}</div>}
+          {latestHandoff.handoff.open_issues.length > 0 && <div><strong>未解決:</strong> {latestHandoff.handoff.open_issues.join(" / ")}</div>}
+          {latestHandoff.handoff.next_steps.length > 0 && <div><strong>次の作業:</strong> {latestHandoff.handoff.next_steps.join(" / ")}</div>}
+          <button className="btn small" style={{ marginTop: 10 }} onClick={() => onContinue(latestHandoff.handoff)}>▶ この続きで新しい会話</button>
+        </div>
+      )}
 
       {/* タスクの常駐表示 §4.6-5 */}
       <div className="panel" style={{ marginTop: 16 }}>

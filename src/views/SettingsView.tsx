@@ -52,6 +52,11 @@ export default function SettingsView({
     );
   };
 
+  const updateHandoff = async (patch: Partial<Settings["handoff"]>) => {
+    if (!settings) return;
+    onSettingsChanged(await window.api.updateSettings({ handoff: { ...settings.handoff, ...patch } }));
+  };
+
   // ---------- 締め切り検知(フォルダスキャン) §4.6 ----------
   const updateScan = async (patch: Partial<Settings["scan"]>) => {
     if (!settings) return;
@@ -168,6 +173,22 @@ export default function SettingsView({
             ⚠ この環境ではOSの暗号化が利用できないため、キーは平文でローカル保存されています。
           </p>
         )}
+      </div>
+
+      <div className="panel">
+        <div className="panel-title-row"><span className="panel-title">引き継ぎメモ</span></div>
+        <div className="form-grid" style={{ maxWidth: 560 }}>
+          <label>自動生成</label>
+          <div className="checkbox-row" style={{ paddingTop: 0 }}>
+            <input id="handoff_auto" type="checkbox" checked={settings?.handoff.auto ?? true} onChange={(e) => updateHandoff({ auto: e.target.checked })} />
+            <label htmlFor="handoff_auto" style={{ padding: 0 }}>会話を切り替えるときに自動で引き継ぎを整理する</label>
+          </div>
+          <label>生成しきい値</label>
+          <div>
+            <input type="number" min={2} max={50} value={settings?.handoff.min_new_messages ?? 6} onChange={(e) => updateHandoff({ min_new_messages: Math.max(2, Number(e.target.value) || 6) })} style={{ width: 100 }} />
+            <div className="muted" style={{ marginTop: 4 }}>前回の引き継ぎ以降、この件数以上の本線メッセージが増えたとき生成します。</div>
+          </div>
+        </div>
       </div>
 
       <div className="panel">

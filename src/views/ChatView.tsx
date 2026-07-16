@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Conversation, ConversationMeta, Message, ModelInfo, Project, ProjectScope, Provider, RoleCard } from "../types";
+import type { Conversation, ConversationMeta, Handoff, Message, ModelInfo, Project, ProjectScope, Provider, RoleCard } from "../types";
 import { matchesProject, projectIdForNew, PROVIDER_LABELS } from "../types";
 import ModelPicker from "../components/ModelPicker";
 import ConversationTreeModal from "../components/ConversationTreeModal";
@@ -62,9 +62,9 @@ interface CompareStream {
   cols: Record<string, string>;
 }
 
-export default function ChatView({ cards, projects, projectScope, initialConversationId, focusMessageId, onTargetConsumed }: {
+export default function ChatView({ cards, projects, projectScope, initialConversationId, focusMessageId, presetText, onTargetConsumed }: {
   cards: RoleCard[]; projects: Project[]; projectScope: ProjectScope;
-  initialConversationId?: string; focusMessageId?: string; onTargetConsumed?: () => void;
+  initialConversationId?: string; focusMessageId?: string; presetText?: string; onTargetConsumed?: () => void;
 }) {
   const [convList, setConvList] = useState<ConversationMeta[]>([]);
   const [conv, setConv] = useState<Conversation | null>(null);
@@ -96,6 +96,8 @@ export default function ChatView({ cards, projects, projectScope, initialConvers
   const [treeOpen, setTreeOpen] = useState(false);
   const [treeInitialSelectedId, setTreeInitialSelectedId] = useState<string | null>(null);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
+  const [handoffOpen, setHandoffOpen] = useState(false);
+  const [handoffGenerating, setHandoffGenerating] = useState(false);
 
   // §4.5 複数カード同時送信(比較モード)
   const [compareMode, setCompareMode] = useState(false);
@@ -126,6 +128,8 @@ export default function ChatView({ cards, projects, projectScope, initialConvers
   useEffect(() => {
     if (!initialConversationId) return;
     (async () => {
+      const previous = convRef.current;
+      if (previous && previous.id !== initialConversationId) window.api.autoHandoff(previous.id).catch(() => {});
       const target = await window.api.getConversation(initialConversationId);
       if (!target) return;
       setConv(target);
@@ -145,6 +149,18 @@ export default function ChatView({ cards, projects, projectScope, initialConvers
       onTargetConsumed?.();
     })();
   }, [initialConversationId, focusMessageId]);
+
+  useEffect(() => {
+    if (presetText !== undefined) setText(presetText);
+  }, [presetText]);
+
+  useEffect(() => {
+    const beforeUnload = () => {
+      if (convRef.current) window.api.autoHandoff(convRef.current.id).catch(() => {});
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, []);
 
   useEffect(() => {
     if (!targetCardId && cards.length > 0) setTargetCardId(cards[0].id);
@@ -209,15 +225,30 @@ export default function ChatView({ cards, projects, projectScope, initialConvers
   }, [conv, streaming?.text, compareStreaming?.cols]);
 
   const openConversation = async (id: string) => {
+    if (convRef.current && convRef.current.id !== id) window.api.autoHandoff(convRef.current.id).catch(() => {});
     setConv(await window.api.getConversation(id));
     setBranchFrom(null);
   };
 
   const newConversation = async () => {
+    if (convRef.current) window.api.autoHandoff(convRef.current.id).catch(() => {});
     const c = await window.api.createConversation(undefined, projectIdForNew(projectScope));
     await refreshConvList();
     setConv(c);
     setBranchFrom(null);
+  };
+
+  const generateHandoffNow = async () => {
+    if (!conv) return;
+    setHandoffGenerating(true);
+    try {
+      await window.api.generateHandoff(conv.id);
+      setConv(await window.api.getConversation(conv.id));
+    } catch (e: any) {
+      alert(String(e?.message ?? e));
+    } finally {
+      setHandoffGenerating(false);
+    }
   };
 
   // @メンション候補(入力の末尾トークンが @… のとき表示)
@@ -770,6 +801,9 @@ export default function ChatView({ cards, projects, projectScope, initialConvers
             >
               🌿 ツリー
             </button>
+            <button type="button" className="btn small secondary" disabled={!conv} onClick={() => setHandoffOpen(true)}>
+              📝 引き継ぎ
+            </button>
             {(streaming || compareStreaming) && (
               <button className="btn small danger" onClick={abort}>
                 ■ 停止
@@ -884,6 +918,27 @@ export default function ChatView({ cards, projects, projectScope, initialConvers
         </div>
       )}
 
+      {handoffOpen && conv && (
+        <div className="modal-backdrop" onClick={() => setHandoffOpen(false)}>
+          <div className="modal" style={{ width: "min(720px, 94vw)" }} onClick={(e) => e.stopPropagation()}>
+            <h2>引き継ぎメモ</h2>
+            {(() => {
+              const items = conv.handoffs ?? [];
+              const latest = items[items.length - 1];
+              const section = (label: string, values: string[]) => <div style={{ marginBottom: 12 }}><strong>{label}</strong>{values.length ? <ul>{values.map((v, i) => <li key={i}>{v}</li>)}</ul> : <div className="muted">まだありません</div>}</div>;
+              return <>
+                {latest ? <div className="panel" style={{ marginBottom: 12 }}>{section("✅ 決定事項", latest.decisions)}{section("❓ 未解決", latest.open_issues)}{section("▶ 次の作業", latest.next_steps)}<div className="muted">{latest.created_at.slice(0, 16).replace("T", " ")} · {latest.model}</div></div> : <div className="empty-state">まだありません</div>}
+                {items.length > 1 && <details><summary>過去のメモ ({items.length - 1})</summary>{items.slice(0, -1).reverse().map((h: Handoff) => <div className="panel" key={h.id} style={{ marginTop: 8 }}>{section("✅ 決定事項", h.decisions)}{section("❓ 未解決", h.open_issues)}{section("▶ 次の作業", h.next_steps)}</div>)}</details>}
+              </>;
+            })()}
+            <div className="modal-actions">
+              <button className="btn secondary" onClick={() => setHandoffOpen(false)}>閉じる</button>
+              <button className="btn" onClick={generateHandoffNow} disabled={handoffGenerating}>{handoffGenerating ? "生成中…" : "🔄 いま生成"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {treeOpen && conv && (
         <ConversationTreeModal
           conversationId={conv.id}
@@ -891,6 +946,7 @@ export default function ChatView({ cards, projects, projectScope, initialConvers
           initialSelectedId={treeInitialSelectedId}
           onClose={async () => {
             setTreeOpen(false);
+            setTreeInitialSelectedId(null);
             // ツリー内で本線を切り替えた可能性があるため再読込
             const latest = await window.api.getConversation(conv.id);
             if (latest) setConv(latest);
