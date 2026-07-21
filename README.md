@@ -41,14 +41,14 @@
 - 削除した会話・資料・成果物などは、ワークスペースの `.trash` に30日間残ります。
 
 ## 開発
-
+> 前提: Node.js LTS が必要。初回起動時は bat が自動で npm install を実行します。
 ```bash
 npm install        # 依存の導入
 npm run dev        # 開発モード(Vite+Electron、ホットリロード)
 npm start          # ビルドして起動
 npm run dist       # 配布用ポータブルexeを release/ に生成
 ```
-
+> サブPCではソースzipではなく portable exe の利用を推奨(Node.js不要)。
 Windowsでダブルクリック起動する場合は `AI作業場を起動.bat`。
 
 ## 2台のPCで使う
